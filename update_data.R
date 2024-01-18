@@ -1,11 +1,11 @@
-# NEED TO DEFINE STATE NUMBER, i = [1-12], while working locally. 
-# LGG January 2024
-# run this to update SNOTEL data
-# need to manually edit skippers to skip the correct number of rows (it will error on line 68 
-# if the skip number is incorrect, it usually only needs to be adjusted up or down by a few integers)
-# also need to manually edit the date range in the url name
+# LGG January 2024 - SNOTEL data scraping script
+# run this to script to update SNOTEL datasets
+# this script runs on a cronjob on OPENCPU at noon daily
+# please set your working directory to the location of this script "setwd(SnowScraper/)"
+# it will add data since the last date in the exiting datasets in the zdata/ folder
+# it will create zdata/ if it does not yet exist and scrape data back to 1972
+# NOTE: the number of rows to skip ("skippers") may need manual updates from year to year
 
-library(ggplot2) #
 library(tidyr) #
 library(dplyr)#
 library(shiny)#
@@ -20,46 +20,52 @@ skippers2021 <- c(132,  82,  93,  174, 144, 151, 88, 115,  140, 194, 135, 148)
 skippers2022 <- c(134,  82,  94,  173, 144, 151, 88, 115,  140, 194, 135, 148)
 skippers <- c(134,  82,  94,  173, 144, 154, 88, 116,  141, 196, 135, 147)
 
+datadir <- "zdata/"
+
+SNTLmeas <- c("Tavg","Acc_Precip","Snow_Depth","SWE",
+              "Tsoil_8")
+SNTLname <- c("Daily Average Temperature (F)","Accumulated Precipitation (in.)",
+              "Snow Depth (in.)","Snow Water Equivalent (in.)","Soil Temperature at 8 in. (F)")
+
 # i is the state number
 for(i in 1:length(state)){
 
   print(paste("Scraping data for state", state[i]))
   
   # Read data
-  datadir <- "zdata/"
-  searchstring <- paste0("out",i,"_")
-  file.names <- dir(datadir, pattern =searchstring)
-  
-  sites <- list()
-  for(e in 1:length(file.names)){
-    outfilename <- paste0(datadir,searchstring,e,".csv")
-    if(e == 1){
-      out3 <- read.csv(outfilename, header=TRUE)
-      sites[[e]] <- unique(out3$Site)
-    }else{
-      temparr7 <- read.csv(outfilename, header=TRUE)
-      sites[[e]] <- unique(temparr7$Site)
-      out3 <- bind_rows(out3, temparr7)  
+  if(dir.exists(datadir)){
+    searchstring <- paste0("out",i,"_")
+    file.names <- dir(datadir, pattern =searchstring)
+    
+    sites <- list()
+    for(e in 1:length(file.names)){
+      outfilename <- paste0(datadir,searchstring,e,".csv")
+      if(e == 1){
+        out3 <- read.csv(outfilename, header=TRUE)
+        sites[[e]] <- unique(out3$Site)
+      }else{
+        temparr7 <- read.csv(outfilename, header=TRUE)
+        sites[[e]] <- unique(temparr7$Site)
+        out3 <- bind_rows(out3, temparr7)  
+      }
     }
+    out3$Date <- as.Date(out3$Date)
+    out3 <- subset(out3, !is.na(Date))
+    if("X" %in% names(out3)) out3 <- out3[,-c(1)]
+    
+    out3$SiteNum <- as.factor(out3$SiteNum)
+    
+    # scrape since last update
+    lastdate <- max(out3$Date) # read the last day it was scraped
+  }else{
+    lastdate <- "1972-10-01"
   }
-  out3$Date <- as.Date(out3$Date)
-  out3 <- subset(out3, !is.na(Date))
-  if("X" %in% names(out3)) out3 <- out3[,-c(1)]
-  
-  out3$SiteNum <- as.factor(out3$SiteNum)
-  
-  SNTLmeas <- c("Tavg","Acc_Precip","Snow_Depth","SWE",
-                "Tsoil_8")
-  SNTLname <- c("Daily Average Temperature (F)","Accumulated Precipitation (in.)",
-                "Snow Depth (in.)","Snow Water Equivalent (in.)","Soil Temperature at 8 in. (F)")
-  # scrape since last update
-  lastdate <- max(out3$Date) # read the last day it was scraped
   print(paste("Date last scraped:", lastdate))
   if(Sys.Date() - lastdate > 1){
     print("Scraping new data")
     urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/",lastdate+1,",CurrentCYEnd/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
     
-    # previous dates
+    # previous dates - edit by hand to add custom dates
     #urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/2022-01-01,2023-12-31/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
     
     
@@ -111,7 +117,12 @@ for(i in 1:length(state)){
     temparr2$SiteNum <- as.factor(temparr2$SiteNum)
     temparr2$State <- as.factor(temparr2$State)
     
-    out2 <- bind_rows(out3, temparr2)
+    if(dir.exists(datadir)){
+      out2 <- bind_rows(out3, temparr2)
+    }else{
+      out2 <- temparr2
+      dir.create(datadir)
+    }
     # add doy and water-year doy field
     out2$doy <- as.numeric(strftime(out2$Date, format = "%j"))
     out2$wateryear <- as.numeric(format(as.Date(out2$Date, format="%d/%m/%Y"),"%Y"))
@@ -131,7 +142,7 @@ for(i in 1:length(state)){
     out2$juliand <- as.integer(out2$juliand)
     
     for(e in 1:length(file.names)){
-      write.csv(file=paste0("zdata/out", i, "_", e, ".csv"), out2 %>% filter(Site %in% sites[[e]]), row.names=FALSE)
+      write.csv(file=paste0(datadir, "out", i, "_", e, ".csv"), out2 %>% filter(Site %in% sites[[e]]), row.names=FALSE)
     }
   }else{
     print("No new data")
