@@ -64,7 +64,7 @@ ui <- fluidPage(
       
       fluidRow(
         column(12,
-               tag("a", list(href = "https://www.nrcs.usda.gov/wps/portal/wcc/home/quicklinks/imap#version=107&elements=&networks=!&states=!&counties=!&hucs=&minElevation=&maxElevation=&elementSelectType=all&activeOnly=true&activeForecastPointsOnly=false&hucLabels=false&hucIdLabels=false&hucParameterLabels=false&stationLabels=&overlays=&hucOverlays=&basinOpacity=100&basinNoDataOpacity=100&basemapOpacity=100&maskOpacity=0&mode=data&openSections=dataElement,parameter,date,basin,elements,location,networks&controlsOpen=true&popup=&popupMulti=&base=esriNgwm&displayType=station&basinType=6&dataElement=SNWD&depth=-8&parameter=OBS&frequency=DAILY&duration=I&customDuration=&dayPart=E&year=2019&month=12&day=11&monthPart=E&forecastPubMonth=6&forecastPubDay=1&forecastExceedance=50&seqColor=1&divColor=3&scaleType=D&scaleMin=&scaleMax=&referencePeriodType=POR&referenceBegin=1981&referenceEnd=2010&minimumYears=20&hucAssociations=true&lat=41.063&lon=-111.533&zoom=5.0",
+               tag("a", list(href = "https://nwcc-apps.sc.egov.usda.gov/imap/#version=169&elements=&networks=!&states=!&counties=!&hucs=&minElevation=&maxElevation=&elementSelectType=all&activeOnly=true&activeForecastPointsOnly=false&hucLabels=false&hucIdLabels=false&hucParameterLabels=false&stationLabels=&overlays=&hucOverlays=&basinOpacity=100&basinNoDataOpacity=100&basemapOpacity=100&maskOpacity=0&mode=data&openSections=dataElement,parameter,date,basin,elements,location,networks&controlsOpen=true&popup=&popupMulti=&popupBasin=&base=esriNgwm&displayType=station&basinType=6&dataElement=SNWD&depth=-8&parameter=OBS&frequency=DAILY&duration=I&customDuration=&dayPart=E&monthPart=E&forecastPubDay=1&forecastExceedance=50&useMixedPast=true&seqColor=1&divColor=3&scaleType=D&scaleMin=&scaleMax=&referencePeriodType=POR&referenceBegin=1981&referenceEnd=2010&minimumYears=20&hucAssociations=true&relativeDate=-1&lat=41.063&lon=-111.533&zoom=5.0",
                              "   NRCS SNOTEL Site Map", target="_blank"))
         )
       ),
@@ -73,7 +73,10 @@ ui <- fluidPage(
         column(12, 
                p("This app reads NRCS SNOTEL data and is built in R Shiny."),
                p("A Water Year is October 1 (of the previous calendar year) through Sept 30."),
-               p(" Questions about the app? Comments? Feedback? Send a message to Amy at farewelltospring.org")
+               p(" Questions about the app? Comments? Feedback? Send a message to Amy at farewelltospring.org or Leslie at lgermain@neptuneinc.org."),
+               p(" Code for this app is open source. You can find it on ",
+                 tag("a", list(href = "https://github.com/lesliegg1/SnowScraper",
+                               "   this github repository.", target="_blank")))
         )
       ),
       
