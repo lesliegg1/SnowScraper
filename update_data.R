@@ -6,9 +6,10 @@
 # it will create zdata/ if it does not yet exist and scrape data back to 1972
 # NOTE: the number of rows to skip ("skippers") may need manual updates from year to year
 
-library(tidyr) #
-library(dplyr)#
-library(shiny)#
+library(tidyr) 
+library(dplyr)
+library(shiny)
+library(arrow)
 
 # states to scrape
 state <-    c("AK","AZ","CA","CO","ID","MT","NM","NV","OR","UT","WA","WY")
@@ -40,25 +41,21 @@ for(i in 1:length(state)){
     
   sites <- list()
   for(e in 1:length(file.names)){
-    outfilename <- paste0(datadir,searchstring,e,".csv")
-    #if(e == 1){
-    out3 <- read.csv(outfilename, header=TRUE)
-    sites[[e]] <- unique(out3$Site)
-    #}else{
-    #  temparr7 <- read.csv(outfilename, header=TRUE)
-    #  sites[[e]] <- unique(temparr7$Site)
-    #  out3 <- bind_rows(out3, temparr7)  
-    #}
-    out3$Date <- as.Date(out3$Date)
-    out3 <- subset(out3, !is.na(Date))
-    if("X" %in% names(out3)) out3 <- out3[,-c(1)]
+    #outfilename <- paste0(datadir,searchstring,e,".csv")
     
-    out3$SiteNum <- as.factor(out3$SiteNum)
-    out3 <- filter(out3, Date >= "2001-01-01")
+    #csv_ds <- open_dataset(outfilename, format = "csv", col_types=schema(Tavg=float64(), Tsoil_8=float64())) 
+    #write_dataset(csv_ds, file.path(datadir, state[i], paste0("part", e)), format = "parquet")
+    
+    out3 <- open_dataset(file.path(datadir, state[i], paste0("part", e))) 
+    #out3 <- read.csv(outfilename, header=TRUE)
+    sites[[e]] <- out3 %>%
+      pull(Site) %>% unique()
+
+    out3 <- out3 |> na.exclude(Date)
       
     if(dir.exists(datadir)){
         # scrape since last update
-      lastdate <- max(out3$Date) # read the last day it was scraped
+      lastdate <- out3 %>% pull(Date) %>% max() # read the last day it was scraped
     }else{
       lastdate <- "2001-01-01"
     }
@@ -66,11 +63,7 @@ for(i in 1:length(state)){
     if(Sys.Date() - lastdate > 1){
       print("Scraping new data")
       urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/",lastdate+1,",CurrentCYEnd/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
-      
-      # previous dates - edit by hand to add custom dates
-      #urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/2022-01-01,2023-12-31/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
-      
-      
+ 
       # Scrape for this calendar year:
       temparr <- read.csv(url(urlname),header=TRUE, skip=skippers[i])
       temparr <- temparr[,order(colnames(temparr))]
@@ -116,11 +109,11 @@ for(i in 1:length(state)){
       temparr2 <- temparr2[rowSums(is.na(temparr2[,5:9])) != ncol(temparr2[,5:9]),] 
       # make sure temparr2 types line with out3
       temparr2$Site <- as.factor(temparr2$Site)
-      temparr2$SiteNum <- as.factor(temparr2$SiteNum)
+      temparr2$SiteNum <- as.integer(temparr2$SiteNum)
       temparr2$State <- as.factor(temparr2$State)
       
       if(dir.exists(datadir)){
-        out2 <- bind_rows(out3, temparr2 %>% filter(Site %in% sites[[e]]))
+        out2 <- bind_rows(collect(out3), temparr2 %>% filter(Site %in% sites[[e]]))
       }else{
         out2 <- temparr2
         dir.create(datadir)
@@ -143,7 +136,8 @@ for(i in 1:length(state)){
       out2$waterdoy <- as.integer(out2$waterdoy)
       out2$juliand <- as.integer(out2$juliand)
     
-      write.csv(file=paste0(datadir, "out", i, "_", e, ".csv"), out2 %>% filter(Site %in% sites[[e]]), row.names=FALSE)
+      #write.csv(file=paste0(datadir, "out", i, "_", e, ".csv"), out2 %>% filter(Site %in% sites[[e]]), row.names=FALSE)
+      write_dataset(out2 %>% filter(Site %in% sites[[e]]), file.path(datadir, state[i], paste0("part", e)), format = "parquet")
     }else{
       print("No New Data")
     }

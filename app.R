@@ -4,16 +4,17 @@
 #--------------------------------------------------------------
 # prelims and load data
 
-library(ggplot2) #
-library(reshape2) #
-library(plyr) #
-library(fitdistrplus) #
-library(tidyr) #
-library(dplyr)#
+#library(reshape2) #
+#library(plyr) #
+library (MASS)
 library(RColorBrewer)#
 library(shiny)#
 library(directlabels)
 library(shinyjs)
+library(arrow)
+library(tidyr)
+library(ggplot2)
+library(dplyr)
 
 load_data <- function() {
   Sys.sleep(2)
@@ -40,6 +41,21 @@ SNTLstaNM <- c("Bateman", "Chamita", "Elk.Cabin", "Frisco.Divide", "Gallegos.Pea
 #skippers <- c(134,  82,  94,  173, 144, 154, 88,  116,141, 196, 135, 147)
 #urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/CurrentCY,CurrentCYEnd/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
 
+
+translation <- schema(
+  State = utf8(),
+  Site = utf8(), 
+  SiteNum=int64(),
+  Date = date64(), # not the default
+  Tavg = float64(),
+  Snow_Depth = float64(),
+  SWE=float64(),
+  Tsoil_8=float64(),
+  Acc_Precip=float64(),
+  wateryear=int64(),
+  waterdoy=float64(),
+  juliand=float64(),
+)
 
 #-------------------------------------------------------------------------------------------
 # shiny app
@@ -119,8 +135,6 @@ ui <- fluidPage(
             plotOutput(outputId = "Plot",  width = "100%")
           )
           
-          
-          
         )
         
       )
@@ -132,28 +146,13 @@ ui <- fluidPage(
 # Define server logic
 server <- function(input, output, session) {
   load_data()
-  
+
   data <- reactive({
-    ind <- which(state == input$state)
-    searchstring <- paste0("out", ind,"_")
-    file.names <- dir(datadir, pattern =searchstring)
     
-    for(e in 1:length(file.names)){
-      outfilename <- paste0(datadir,searchstring,e,".csv")
-      if(e == 1){
-        out3 <- read.csv(outfilename, header=TRUE)
-      }else{
-        temparr7 <- read.csv(outfilename, header=TRUE)
-        out3 <- bind_rows(out3, temparr7)  
-      }
-    }
-    out3$Date <- as.Date(out3$Date)
-    out3 <- subset(out3, !is.na(Date))
-    out3$SiteNum <- as.factor(out3$SiteNum)
-    
-    # make measurement data numeric if they are integers
-    out3 <- out3 %>%
-      mutate_if(is.integer, as.numeric)
+    open_dataset(file.path(datadir, input$state), schema=translation) %>% 
+      na.exclude(Date) %>%
+      na.exclude(SnowDepth) #%>%
+      #collect
 
   })
   
@@ -162,28 +161,23 @@ server <- function(input, output, session) {
   })
   
   observe({
-    site_select <- unique(data()$Site)[18]
-    if(is.na(site_select)) site_select <- unique(data()$Site)[1]
+    #site_select <- unique(data()$Site)[18]
+    site_choices <- data() %>% pull(Site, as_vector=TRUE) %>% unique()
+    site_select <- site_choices[18]
+    if(is.na(site_select)) site_select <- site_choices[1]
     updateSelectizeInput(session, "site",
-                      choices = unique(data()$Site),
+                      choices = site_choices,
                       selected = site_select
     )
   })
   
   sub_data <- reactive({
-    newdf1 <- subset(data(), Site == input$site) 
-    newdf <- newdf1 %>% dplyr::select(Date, Site, SiteNum, State, wateryear, waterdoy, juliand)
-    newdf <- bind_cols(newdf, data.frame(var=newdf1[,input$variable]))
-    # this next row can be a switch for changing years to match sensor years
-    newdf <- newdf[complete.cases(newdf$var),]
-    newdf <- newdf[order(newdf$juliand),] %>%
-      mutate(wateryear=factor(wateryear), waterdoy=as.numeric(waterdoy), var=as.numeric(var))
+    newdf1 <- filter(data(), Site == input$site) 
+    newdf <- newdf1 %>% 
+      select(Date, Site, SiteNum, State, wateryear, waterdoy, juliand, var=all_of(input$variable)) %>%
+      na.exclude(var) %>%
+      collect
   })
-  
-  # output$checkyears <- renderUI({
-  #   years_site <- unique(sub_data()$wateryear)
-  #   checkboxGroupInput("hyears", "Highlight Years", years_site, selected = NULL)
-  # })
   
   observe({
     updateCheckboxGroupInput(session, "hyears",
@@ -218,25 +212,26 @@ server <- function(input, output, session) {
     titlelab <- paste0(gsub("\\.", " ", sitename),", ", input$state,": Data through 00:00am on ",maxday)
     
     if(nh >= 1){
-      p1 <- ggplot(data=newdf, aes(x=waterdoy, y=var, group=wateryear, colour=wateryear)) + 
+      p1 <- ggplot(data=newdf, aes(x=waterdoy, y=var, group=factor(wateryear), colour=factor(wateryear))) + 
         xlab("Day of Water Year") + ylab(yaxislab) + 
         ylim(c(as.numeric(input$miny),as.numeric(input$maxy))) + ggtitle(titlelab)
       p1  + geom_line(alpha=0.5,size=1.5) + scale_x_continuous(breaks = c(-1,28,58,89,120,151,182,212,243,273,304,335),
                                                                labels = c("Oct","Nov","Dec","Jan", "Feb","Mar","Apr","May", "Jun","Jul","Aug","Sep"), 
                                                                limits=c(as.numeric(input$minx),as.numeric(input$maxx))) +
         scale_color_manual(values=colorrmp) +
-        geom_line(data=qq, aes(x=as.numeric(waterdoy), y=var, group=wateryear, colour=wateryear), size=3) +
-        geom_dl(aes(label = wateryear), method = list(dl.combine("top.bumpup"), cex = 0.8)) +
+        geom_line(data=qq, aes(x=as.numeric(waterdoy), y=var, group=factor(wateryear), colour=factor(wateryear)), size=3) +
+        geom_dl(aes(label = factor(wateryear)), method = list(dl.combine("top.bumpup"), cex = 0.8)) +
         guides(colour = guide_legend(override.aes = list(alpha = 0.5))) 
       
     } else {
-      p1 <- ggplot(data=newdf, aes(x=waterdoy, y=var, group=wateryear, colour=wateryear)) + xlab("Day of Water Year") + ylab(yaxislab)+ 
+      p1 <- ggplot(data=newdf, aes(x=waterdoy, y=var, group=factor(wateryear), colour=factor(wateryear))) + 
+        xlab("Day of Water Year") + ylab(yaxislab)+ 
         ylim(c(as.numeric(input$miny),as.numeric(input$maxy))) + ggtitle(titlelab)
       p1  + geom_line(alpha=0.5,size=1.5) + scale_x_continuous(breaks = c(-1,28,58,89,120,151,182,212,243,273,304,335),
                                                                labels = c("Oct","Nov","Dec","Jan", "Feb","Mar","Apr","May", "Jun","Jul","Aug","Sep"), 
                                                                limits=c(as.numeric(input$minx),as.numeric(input$maxx))) +
         scale_color_manual(values=colorrmp) +
-        geom_dl(aes(label = wateryear), method = list(dl.combine("top.bumpup"), cex = 0.8)) 
+        geom_dl(aes(label = factor(wateryear)), method = list(dl.combine("top.bumpup"), cex = 0.8)) 
     }
   }, height = 600)
   
