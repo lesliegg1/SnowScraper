@@ -1,6 +1,6 @@
 
 # New app that includes all states
-# LGG January 2024
+# LGG June 2025
 #--------------------------------------------------------------
 # prelims and load data
 
@@ -37,9 +37,6 @@ SNTLstaNM <- c("Bateman", "Chamita", "Elk.Cabin", "Frisco.Divide", "Gallegos.Pea
               "Rice.Park",           "Rio.Santa.Barbara",   "San.Antonio.Sink",    "Santa.Fe",  "Senorita.Divide..2",  "Shuree",  "Sierra.Blanca",      
               "Signal.Peak",         "Silver.Creek.Divide", "Taos.Powderhorn",     "Taos.Pueblo",         "Tolby",               "Tres.Ritos",          
               "Vacas.Locas",  "Wesner.Springs")
-
-#skippers <- c(134,  82,  94,  173, 144, 154, 88,  116,141, 196, 135, 147)
-#urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/CurrentCY,CurrentCYEnd/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
 
 
 translation <- schema(
