@@ -25,7 +25,7 @@ load_data <- function() {
 state <-    c("AK","AZ","CA","CO","ID","MT","NM","NV","OR","UT","WA","WY")
 statelc <-  c("ak","az","ca","co","id","mt","nm","nv","or","ut","wa","wy")
 
-datadir <- "zdata/"
+datadir <- "zdata"
 
 SNTLmeas <- c("Tavg","Acc_Precip","Snow_Depth","SWE", "Tsoil_8")
 
