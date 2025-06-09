@@ -19,7 +19,9 @@ statelc <-  c("ak","az","ca","co","id","mt","nm","nv","or","ut","wa","wy")
 #skippers2020 <- c(116,  77,  88,  169, 136,143,  82, 110,  135, 186, 129, 145)
 skippers2021 <- c(132,  82,  93,  174, 144, 151, 88, 115,  140, 194, 135, 148)
 skippers2022 <- c(134,  82,  94,  173, 144, 151, 88, 115,  140, 194, 135, 148)
-skippers <- c(134,  82,  94,  173, 144, 154, 88, 116,  141, 196, 135, 147)
+skippers2024 <- c(134,  82,  94,  173, 144, 154, 88, 116,  141, 196, 135, 147)
+skippers <- c(138,  84,  97,  178, 146, 154, 88, 116,  141, 196, 135, 147)
+skippers <- read.table("skippers.txt", header=TRUE) %>% pull(skippers)
 
 datadir <- "zdata/"
 
@@ -35,8 +37,7 @@ for(i in 1:length(state)){
   
   # Read data
   if(dir.exists(datadir)){
-    searchstring <- paste0("out",i,"_")
-    file.names <- dir(datadir, pattern =searchstring)
+    file.names <- dir(paste0(datadir, state[i]))
   }
     
   sites <- list()
@@ -46,7 +47,7 @@ for(i in 1:length(state)){
     #csv_ds <- open_dataset(outfilename, format = "csv", col_types=schema(Tavg=float64(), Tsoil_8=float64())) 
     #write_dataset(csv_ds, file.path(datadir, state[i], paste0("part", e)), format = "parquet")
     
-    out3 <- open_dataset(file.path(datadir, state[i], paste0("part", e))) 
+    out3 <- open_dataset(file.path(paste0(datadir, state[i]), file.names[e])) 
     #out3 <- read.csv(outfilename, header=TRUE)
     sites[[e]] <- out3 %>%
       pull(Site) %>% unique()
@@ -55,7 +56,7 @@ for(i in 1:length(state)){
       
     if(dir.exists(datadir)){
         # scrape since last update
-      lastdate <- out3 %>% pull(Date) %>% max() # read the last day it was scraped
+      lastdate <- out3 %>% mutate(Date=as.Date(Date)) %>% pull(Date) %>% max() # read the last day it was scraped
     }else{
       lastdate <- "2001-01-01"
     }
@@ -65,7 +66,21 @@ for(i in 1:length(state)){
       urlname <- paste0("https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultiTimeSeriesGroupByStationReport/daily/start_of_period/state=%22",statelc[i],"%22%20AND%20network=%22SNTL%22%20AND%20outServiceDate=%222100-01-01%22%7Cname/",lastdate+1,",CurrentCYEnd/stationId,name,WTEQ::value,TAVG::value,PREC::value,SNWD::value,STO:-8:value?fitToScreen=false")
  
       # Scrape for this calendar year:
-      temparr <- read.csv(url(urlname),header=TRUE, skip=skippers[i])
+      read_error <- TRUE
+      skipper <- skippers[i] - 1
+      while (read_error) {
+        skipper <- skipper+1 # add one to the skipper
+        message(paste("trying", skipper))
+        result <- tryCatch({
+          # Code that might generate an error
+          temparr <- read.csv(url(urlname),header=TRUE, skip=skipper)
+          read_error <- FALSE 
+        }, error = function(e) {
+          message(paste("An error occurred while reading data"))
+        })
+      }
+      skippers[i] <- skipper
+      
       temparr <- temparr[,order(colnames(temparr))]
       
       # find date column & move it first
@@ -113,7 +128,9 @@ for(i in 1:length(state)){
       temparr2$State <- as.factor(temparr2$State)
       
       if(dir.exists(datadir)){
-        out2 <- bind_rows(collect(out3), temparr2 %>% filter(Site %in% sites[[e]]))
+        out2 <- bind_rows(collect(out3) %>% mutate(Date=as.Date(Date), SiteNum=as.factor(SiteNum)), 
+                          temparr2 %>% mutate(SiteNum=as.factor(SiteNum)) %>%
+                            filter(Site %in% sites[[e]]))
       }else{
         out2 <- temparr2
         dir.create(datadir)
@@ -143,3 +160,6 @@ for(i in 1:length(state)){
     }
   }
 }
+
+# write the new skippers
+write.table(data.frame(state=state, skippers=skippers), file="skippers.txt", row.names=FALSE)
