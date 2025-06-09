@@ -32,8 +32,6 @@ SNTLname <- c("Daily Average Temperature (F)","Accumulated Precipitation (in.)",
 
 # i is the state number
 for(i in 1:length(state)){
-
-  print(paste("Scraping data for state", state[i]))
   
   # Read data
   if(dir.exists(datadir)){
@@ -46,6 +44,7 @@ for(i in 1:length(state)){
     
     #csv_ds <- open_dataset(outfilename, format = "csv", col_types=schema(Tavg=float64(), Tsoil_8=float64())) 
     #write_dataset(csv_ds, file.path(datadir, state[i], paste0("part", e)), format = "parquet")
+    print(paste0("Scraping data for state ", state[i], ": ", file.names[e]))
     
     out3 <- open_dataset(file.path(paste0(datadir, state[i]), file.names[e])) 
     #out3 <- read.csv(outfilename, header=TRUE)
@@ -158,8 +157,9 @@ for(i in 1:length(state)){
     }else{
       print("No New Data")
     }
+    # write the new skippers
+    write.table(data.frame(state=state, skippers=skippers), file="skippers.txt", row.names=FALSE)
   }
 }
 
-# write the new skippers
-write.table(data.frame(state=state, skippers=skippers), file="skippers.txt", row.names=FALSE)
+
